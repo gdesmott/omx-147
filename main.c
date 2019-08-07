@@ -1,8 +1,6 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 
-#define PIPELINE "v4l2src io-mode=dmabuf device=/dev/video0 num-buffers=100 ! video/x-raw,format=NV16_10LE32, width=1920, height=1080, framerate=60/1 ! omxh264enc name=encoder ! video/x-h264, profile=high-4:2:2 ! h264parse ! mp4mux ! filesink location=test.mp4"
-
 #define NB_BUFFER_DISCARD 20
 
 GST_DEBUG_CATEGORY (launch_drop_debug);
@@ -45,13 +43,13 @@ encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
 }
 
 static GstElement *
-create_pipeline (void)
+create_pipeline (const gchar ** pipeline_desc)
 {
   g_autoptr (GstElement) pipeline = NULL, encoder = NULL;
   g_autoptr (GError) error = NULL;
   g_autoptr (GstPad) pad = NULL;
 
-  pipeline = gst_parse_launch (PIPELINE, &error);
+  pipeline = gst_parse_launchv (pipeline_desc, &error);
   if (!pipeline) {
     GST_ERROR ("Failed to create pipeline: %s", error->message);
     return NULL;
@@ -97,13 +95,13 @@ bus_message (GstBus * bus, GstMessage * msg, GMainLoop * loop)
 }
 
 static void
-run (void)
+run (const gchar ** pipeline_desc)
 {
   g_autoptr (GstElement) pipeline = NULL;
   g_autoptr (GstBus) bus = NULL;
   g_autoptr (GMainLoop) loop = NULL;
 
-  pipeline = create_pipeline ();
+  pipeline = create_pipeline (pipeline_desc);
   g_assert (pipeline);
 
   loop = g_main_loop_new (NULL, FALSE);
@@ -121,12 +119,18 @@ run (void)
 int
 main (int argc, char **argv)
 {
+  g_autofree gchar **argvn = NULL;
+
   gst_init (&argc, &argv);
 
   GST_DEBUG_CATEGORY_INIT (launch_drop_debug, "launch-drop", 0,
       "gst-launch-drop tool category");
 
-  run ();
+  /* make a null-terminated version of argv */
+  argvn = g_new0 (char *, argc);
+  memcpy (argvn, argv + 1, sizeof (char *) * (argc - 1));
+
+  run ((const gchar **) argvn);
 
   gst_deinit ();
   return 0;

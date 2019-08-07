@@ -1,16 +1,17 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 
-#define NB_BUFFER_DISCARD 20
-
 GST_DEBUG_CATEGORY (launch_drop_debug);
 #define GST_CAT_DEFAULT launch_drop_debug
 
 static gchar *drop_element = NULL;
+static guint nb_buffer_discard = 20;
 
 static GOptionEntry entries[] = {
   {"element", 'e', 0, G_OPTION_ARG_STRING, &drop_element,
       "Name of the element whose output should be dropped", NULL},
+  {"nb-buffer", 'n', 0, G_OPTION_ARG_INT, &nb_buffer_discard,
+      "Number of buffers to drop (default: 20)", NULL},
   {NULL}
 };
 
@@ -30,11 +31,11 @@ encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
       gst_buffer_has_flags (buffer, GST_BUFFER_FLAG_HEADER));
 
   count++;
-  if (count <= NB_BUFFER_DISCARD) {
+  if (count <= nb_buffer_discard) {
     GST_LOG ("Buffer %u/%u produced by encoder, discard", count,
-        NB_BUFFER_DISCARD);
+        nb_buffer_discard);
 
-    if (count == NB_BUFFER_DISCARD) {
+    if (count == nb_buffer_discard) {
       GstEvent *event;
 
       GST_LOG ("All buffers have been discarded, request a keyframe");
@@ -75,7 +76,8 @@ create_pipeline (const gchar ** pipeline_desc)
     pad = gst_element_get_static_pad (element, "src");
     g_assert (pad);
 
-    g_print ("Add drop probe on element '%s'\n", drop_element);
+    g_print ("Add drop probe on element '%s'. Drop %d buffers\n", drop_element,
+        nb_buffer_discard);
     gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, encoder_buffer_probe_cb,
         NULL, NULL);
   }

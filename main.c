@@ -5,8 +5,8 @@
 
 #define NB_BUFFER_DISCARD 20
 
-GST_DEBUG_CATEGORY (capture_debug);
-#define GST_CAT_DEFAULT capture_debug
+GST_DEBUG_CATEGORY (launch_drop_debug);
+#define GST_CAT_DEFAULT launch_drop_debug
 
 static GstPadProbeReturn
 encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
@@ -123,8 +123,8 @@ main (int argc, char **argv)
 {
   gst_init (&argc, &argv);
 
-  GST_DEBUG_CATEGORY_INIT (capture_debug, "capture", 0,
-      "capture tool category");
+  GST_DEBUG_CATEGORY_INIT (launch_drop_debug, "launch-drop", 0,
+      "gst-launch-drop tool category");
 
   run ();
 

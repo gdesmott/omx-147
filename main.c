@@ -31,6 +31,7 @@ GST_DEBUG_CATEGORY (launch_drop_debug);
 
 static gchar *drop_element = NULL;
 static guint nb_buffer_discard = 20;
+static guint nb_buffer_allowed = 0;
 static gboolean request_key_frame = FALSE;
 static gboolean verbose = FALSE;
 
@@ -39,6 +40,8 @@ static GOptionEntry entries[] = {
       "Name of the element whose output should be dropped", NULL},
   {"drop-buffers", 'n', 0, G_OPTION_ARG_INT, &nb_buffer_discard,
       "Number of buffers to drop (default: 20)", NULL},
+  {"allow-buffers", 'a', 0, G_OPTION_ARG_INT, &nb_buffer_allowed,
+      "Number of buffers to allow before starting to drop (default: 0)", NULL},
   {"key-frame", 'k', 0, G_OPTION_ARG_NONE, &request_key_frame,
       "Request a key frame when done dropping", NULL},
   {"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose,
@@ -62,11 +65,16 @@ encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
       gst_buffer_has_flags (buffer, GST_BUFFER_FLAG_HEADER));
 
   count++;
-  if (count <= nb_buffer_discard) {
+
+  if (count <= nb_buffer_allowed) {
+    return GST_PAD_PROBE_OK;
+  }
+
+  if (count <= nb_buffer_discard + nb_buffer_allowed) {
     GST_LOG ("Buffer %u/%u produced by encoder, discard", count,
         nb_buffer_discard);
 
-    if (count == nb_buffer_discard) {
+    if (count == nb_buffer_discard + nb_buffer_allowed) {
       g_print ("All buffers have been dropped\n");
 
       if (request_key_frame) {

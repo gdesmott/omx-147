@@ -9,6 +9,7 @@ GST_DEBUG_CATEGORY (launch_drop_debug);
 static gchar *drop_element = NULL;
 static guint nb_buffer_discard = 20;
 static gboolean request_key_frame = FALSE;
+static gboolean verbose = FALSE;
 
 static GOptionEntry entries[] = {
   {"element", 'e', 0, G_OPTION_ARG_STRING, &drop_element,
@@ -17,6 +18,8 @@ static GOptionEntry entries[] = {
       "Number of buffers to drop (default: 20)", NULL},
   {"key-frame", 'k', 0, G_OPTION_ARG_NONE, &request_key_frame,
       "Request a key frame when done dropping", NULL},
+  {"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose,
+      "Output status information and property notifications", NULL},
   {NULL}
 };
 
@@ -115,6 +118,39 @@ bus_message (GstBus * bus, GstMessage * msg, GMainLoop * loop)
       g_print ("eos\n");
       g_main_loop_quit (loop);
       break;
+    case GST_MESSAGE_PROPERTY_NOTIFY:{
+      const GValue *val;
+      const gchar *name;
+      GstObject *obj;
+      gchar *val_str = NULL;
+      gchar *obj_name;
+
+      if (!verbose)
+        break;
+
+      gst_message_parse_property_notify (msg, &obj, &name, &val);
+
+      obj_name = gst_object_get_path_string (GST_OBJECT (obj));
+      if (val != NULL) {
+        if (G_VALUE_HOLDS_STRING (val))
+          val_str = g_value_dup_string (val);
+        else if (G_VALUE_TYPE (val) == GST_TYPE_CAPS)
+          val_str = gst_caps_to_string (g_value_get_boxed (val));
+        else if (G_VALUE_TYPE (val) == GST_TYPE_TAG_LIST)
+          val_str = gst_tag_list_to_string (g_value_get_boxed (val));
+        else if (G_VALUE_TYPE (val) == GST_TYPE_STRUCTURE)
+          val_str = gst_structure_to_string (g_value_get_boxed (val));
+        else
+          val_str = gst_value_serialize (val);
+      } else {
+        val_str = g_strdup ("(no value)");
+      }
+
+      g_print ("%s: %s = %s\n", obj_name, name, val_str);
+      g_free (obj_name);
+      g_free (val_str);
+      break;
+    }
     default:
       break;
   }
@@ -127,10 +163,15 @@ run (const gchar ** pipeline_desc)
   g_autoptr (GstElement) pipeline = NULL;
   g_autoptr (GstBus) bus = NULL;
   g_autoptr (GMainLoop) loop = NULL;
+  gulong deep_notify_id = 0;
 
   pipeline = create_pipeline (pipeline_desc);
   if (!pipeline)
     return FALSE;
+
+  if (verbose)
+    deep_notify_id =
+        gst_element_add_property_deep_notify_watch (pipeline, NULL, TRUE);
 
   loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -139,6 +180,10 @@ run (const gchar ** pipeline_desc)
 
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
   g_main_loop_run (loop);
+
+  /* No need to see all those pad caps going to NULL etc., it's just noise */
+  if (deep_notify_id != 0)
+    g_signal_handler_disconnect (pipeline, deep_notify_id);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
   gst_bus_remove_watch (bus);

@@ -37,7 +37,7 @@ static gboolean verbose = FALSE;
 static GOptionEntry entries[] = {
   {"element", 'e', 0, G_OPTION_ARG_STRING, &drop_element,
       "Name of the element whose output should be dropped", NULL},
-  {"nb-buffer", 'n', 0, G_OPTION_ARG_INT, &nb_buffer_discard,
+  {"drop-buffers", 'n', 0, G_OPTION_ARG_INT, &nb_buffer_discard,
       "Number of buffers to drop (default: 20)", NULL},
   {"key-frame", 'k', 0, G_OPTION_ARG_NONE, &request_key_frame,
       "Request a key frame when done dropping", NULL},

@@ -6,12 +6,15 @@ GST_DEBUG_CATEGORY (launch_drop_debug);
 
 static gchar *drop_element = NULL;
 static guint nb_buffer_discard = 20;
+static gboolean request_key_frame = FALSE;
 
 static GOptionEntry entries[] = {
   {"element", 'e', 0, G_OPTION_ARG_STRING, &drop_element,
       "Name of the element whose output should be dropped", NULL},
   {"nb-buffer", 'n', 0, G_OPTION_ARG_INT, &nb_buffer_discard,
       "Number of buffers to drop (default: 20)", NULL},
+  {"key-frame", 'k', 0, G_OPTION_ARG_NONE, &request_key_frame,
+      "Request a key frame when done dropping", NULL},
   {NULL}
 };
 
@@ -36,14 +39,18 @@ encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
         nb_buffer_discard);
 
     if (count == nb_buffer_discard) {
-      GstEvent *event;
+      g_print ("All buffers have been dropped\n");
 
-      GST_LOG ("All buffers have been discarded, request a keyframe");
+      if (request_key_frame) {
+        GstEvent *event;
 
-      event =
-          gst_video_event_new_upstream_force_key_unit (GST_CLOCK_TIME_NONE,
-          TRUE, 1);
-      g_assert (gst_pad_send_event (pad, event));
+        g_print ("Request key frame\n");
+
+        event =
+            gst_video_event_new_upstream_force_key_unit (GST_CLOCK_TIME_NONE,
+            TRUE, 1);
+        g_assert (gst_pad_send_event (pad, event));
+      }
     }
     return GST_PAD_PROBE_DROP;
   }

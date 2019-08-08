@@ -67,6 +67,7 @@ encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
   count++;
 
   if (count <= nb_buffer_allowed) {
+    GST_LOG ("Let buffer %u/%u go through", count, nb_buffer_allowed);
     return GST_PAD_PROBE_OK;
   }
 

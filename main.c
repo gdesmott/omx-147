@@ -73,7 +73,7 @@ encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
 
   if (count <= nb_buffer_discard + nb_buffer_allowed) {
     GST_LOG ("Buffer %u/%u produced by encoder, discard", count,
-        nb_buffer_discard);
+        nb_buffer_discard + nb_buffer_allowed);
 
     if (count == nb_buffer_discard + nb_buffer_allowed) {
       g_print ("All buffers have been dropped\n");

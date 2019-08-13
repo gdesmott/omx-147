@@ -82,6 +82,7 @@ encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
         GstEvent *event;
 
         g_print ("Request key frame\n");
+        GST_LOG ("Request key frame");
 
         event =
             gst_video_event_new_upstream_force_key_unit (GST_CLOCK_TIME_NONE,

@@ -23,6 +23,7 @@
 
 #include <string.h>
 
+#include <glib-unix.h>
 #include <gst/gst.h>
 #include <gst/video/video.h>
 
@@ -151,6 +152,10 @@ bus_message (GstBus * bus, GstMessage * msg, GMainLoop * loop)
       g_print ("eos\n");
       g_main_loop_quit (loop);
       break;
+    case GST_MESSAGE_APPLICATION:
+      if (gst_message_has_name (msg, "GstLaunchInterrupt"))
+        g_main_loop_quit (loop);
+      break;
     case GST_MESSAGE_PROPERTY_NOTIFY:{
       const GValue *val;
       const gchar *name;
@@ -190,6 +195,26 @@ bus_message (GstBus * bus, GstMessage * msg, GMainLoop * loop)
   return TRUE;
 }
 
+static guint signal_watch_intr_id = 0;
+
+static gboolean
+intr_handler (gpointer user_data)
+{
+  GstElement *pipeline = (GstElement *) user_data;
+
+  g_print ("handling interrupt.\n");
+
+  /* post an application specific message */
+  gst_element_post_message (GST_ELEMENT (pipeline),
+      gst_message_new_application (GST_OBJECT (pipeline),
+          gst_structure_new ("GstLaunchInterrupt",
+              "message", G_TYPE_STRING, "Pipeline interrupted", NULL)));
+
+  /* remove signal handler */
+  signal_watch_intr_id = 0;
+  return G_SOURCE_REMOVE;
+}
+
 static gboolean
 run (const gchar ** pipeline_desc)
 {
@@ -211,6 +236,9 @@ run (const gchar ** pipeline_desc)
 
   gst_bus_add_watch (bus, (GstBusFunc) bus_message, loop);
 
+  signal_watch_intr_id =
+      g_unix_signal_add (SIGINT, (GSourceFunc) intr_handler, pipeline);
+
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
   g_main_loop_run (loop);
 
@@ -220,6 +248,9 @@ run (const gchar ** pipeline_desc)
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
   gst_bus_remove_watch (bus);
+
+  if (signal_watch_intr_id > 0)
+    g_source_remove (signal_watch_intr_id);
 
   return TRUE;
 }

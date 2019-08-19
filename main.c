@@ -50,6 +50,15 @@ static GOptionEntry entries[] = {
   {NULL}
 };
 
+typedef enum _EventLoopResult
+{
+  ELR_NO_ERROR = 0,
+  ELR_ERROR,
+  ELR_INTERRUPT
+} EventLoopResult;
+
+static EventLoopResult caught_error = ELR_NO_ERROR;
+
 static GstPadProbeReturn
 encoder_buffer_probe_cb (GstPad * pad, GstPadProbeInfo * info,
     gpointer user_data)
@@ -153,8 +162,10 @@ bus_message (GstBus * bus, GstMessage * msg, GMainLoop * loop)
       g_main_loop_quit (loop);
       break;
     case GST_MESSAGE_APPLICATION:
-      if (gst_message_has_name (msg, "GstLaunchInterrupt"))
+      if (gst_message_has_name (msg, "GstLaunchInterrupt")) {
+        caught_error = ELR_INTERRUPT;
         g_main_loop_quit (loop);
+      }
       break;
     case GST_MESSAGE_PROPERTY_NOTIFY:{
       const GValue *val;
@@ -222,6 +233,7 @@ run (const gchar ** pipeline_desc)
   g_autoptr (GstBus) bus = NULL;
   g_autoptr (GMainLoop) loop = NULL;
   gulong deep_notify_id = 0;
+  GstState state, pending;
 
   pipeline = create_pipeline (pipeline_desc);
   if (!pipeline)
@@ -239,13 +251,27 @@ run (const gchar ** pipeline_desc)
   signal_watch_intr_id =
       g_unix_signal_add (SIGINT, (GSourceFunc) intr_handler, pipeline);
 
+  g_print ("Setting pipeline to PLAYING ...\n");
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
   g_main_loop_run (loop);
+
+  g_print ("Setting pipeline to PAUSED ...\n");
+  gst_element_set_state (pipeline, GST_STATE_PAUSED);
+  if (caught_error == ELR_NO_ERROR)
+    gst_element_get_state (pipeline, &state, &pending, GST_CLOCK_TIME_NONE);
+
+  /* iterate mainloop to process pending stuff */
+  while (g_main_context_iteration (NULL, FALSE));
 
   /* No need to see all those pad caps going to NULL etc., it's just noise */
   if (deep_notify_id != 0)
     g_signal_handler_disconnect (pipeline, deep_notify_id);
 
+  g_print ("Setting pipeline to READY ...\n");
+  gst_element_set_state (pipeline, GST_STATE_READY);
+  gst_element_get_state (pipeline, &state, &pending, GST_CLOCK_TIME_NONE);
+
+  g_print ("Setting pipeline to NULL ...\n");
   gst_element_set_state (pipeline, GST_STATE_NULL);
   gst_bus_remove_watch (bus);
 
